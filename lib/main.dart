@@ -2,7 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import 'device.dart';
+import 'mqtt_device.dart';
 import 'key_codes.dart';
 
 void main() {
@@ -32,7 +32,8 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  SamsungSmartTV tv;
+  // SamsungSmartTV tv;
+  SamsungSmartTV tv = SamsungSmartTV();
   bool _keypadShown = false;
 
   @override
@@ -43,13 +44,14 @@ class _MyHomePageState extends State<MyHomePage> {
   Future<void> connectTV() async {
     try {
       setState(() async {
-        tv = await SamsungSmartTV.discover();
+        // tv = await SamsungSmartTV.discover();
+        // tv = SamsungSmartTV();
         await tv.connect();
       });
     } catch (e) {
       print(e);
     }
-    print("this is the token to save somewere ${tv.token}");
+    // print("this is the token to save somewere ${tv.token}");
   }
 
   @override
@@ -64,7 +66,8 @@ class _MyHomePageState extends State<MyHomePage> {
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 IconButton(
-                  icon: Icon(Icons.cast, size: 30, color: Colors.cyan),
+                  icon: Icon(Icons.cast, size: 30, color: tv.isConnected ? Colors.green : Colors.red),
+
                   onPressed: connectTV,
                 ),
                 IconButton(
