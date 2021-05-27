@@ -4,9 +4,9 @@ import 'dart:io';
 import 'package:mqtt_client/mqtt_client.dart';
 import 'package:mqtt_client/mqtt_server_client.dart';
 
-import 'package:http/http.dart' as http;
+// import 'package:http/http.dart' as http;
 // import 'package:upnp/upnp.dart';
-import 'package:web_socket_channel/io.dart';
+// import 'package:web_socket_channel/io.dart';
 
 import 'key_codes.dart';
 
@@ -15,8 +15,6 @@ final kKeyDelay = 200;
 final kWakeOnLanDelay = 5000;
 final kUpnpTimeout = 1000;
 final pubTopic = 'IR/command';
-
-
 
 // import wol from 'wake_on_lan'
 // import WebSocket from 'ws'
@@ -43,7 +41,7 @@ class SamsungSmartTV {
   bool isConnected = false;
   String token;
   dynamic info;
-  IOWebSocketChannel ws;
+  // IOWebSocketChannel ws;
   Timer timer;
 
   // SamsungSmartTV({
@@ -54,19 +52,17 @@ class SamsungSmartTV {
   //       services = [];
 
   SamsungSmartTV() {
+    /// Set logging on if needed, defaults to off
+    this.client.logging(on: false);
 
-      /// Set logging on if needed, defaults to off
-      this.client.logging(on: false);
+    /// If you intend to use a keep alive you must set it here otherwise keep alive will be disabled.
+    this.client.keepAlivePeriod = 20;
 
-      /// If you intend to use a keep alive you must set it here otherwise keep alive will be disabled.
-      this.client.keepAlivePeriod = 20;
+    /// Add the unsolicited disconnection callback
+    this.client.onDisconnected = onDisconnected;
 
-      /// Add the unsolicited disconnection callback
-      this.client.onDisconnected = onDisconnected;
-
-      /// Add the successful connection callback
-      this.client.onConnected = onConnected;
-
+    /// Add the successful connection callback
+    this.client.onConnected = onConnected;
   }
 
   /**
@@ -84,32 +80,31 @@ class SamsungSmartTV {
       return;
     }
 
-      /// Connect the client, any errors here are communicated by raising of the appropriate exception. Note
-      /// in some circumstances the broker will just disconnect us, see the spec about this, we however will
-      /// never send malformed messages.
-      try {
-        await client.connect();
-      } on NoConnectionException catch (e) {
-        // Raised by the client when connection fails.
-        print('EXAMPLE::client exception - $e');
-        client.disconnect();
-      } on SocketException catch (e) {
-        // Raised by the socket layer
-        print('EXAMPLE::socket exception - $e');
-        client.disconnect();
-      }
+    /// Connect the client, any errors here are communicated by raising of the appropriate exception. Note
+    /// in some circumstances the broker will just disconnect us, see the spec about this, we however will
+    /// never send malformed messages.
+    try {
+      await client.connect();
+    } on NoConnectionException catch (e) {
+      // Raised by the client when connection fails.
+      print('EXAMPLE::client exception - $e');
+      client.disconnect();
+    } on SocketException catch (e) {
+      // Raised by the socket layer
+      print('EXAMPLE::socket exception - $e');
+      client.disconnect();
+    }
 
-      /// Check we are connected
-      if (client.connectionStatus.state == MqttConnectionState.connected) {
-        print('EXAMPLE::Mosquitto client connected');
-      } else {
-        /// Use status here rather than state if you also want the broker return code.
-        print(
-            'EXAMPLE::ERROR Mosquitto client connection failed - disconnecting, status is ${client.connectionStatus}');
-        client.disconnect();
-        exit(-1);
-      }
-
+    /// Check we are connected
+    if (client.connectionStatus.state == MqttConnectionState.connected) {
+      print('EXAMPLE::Mosquitto client connected');
+    } else {
+      /// Use status here rather than state if you also want the broker return code.
+      print(
+          'EXAMPLE::ERROR Mosquitto client connection failed - disconnecting, status is ${client.connectionStatus}');
+      client.disconnect();
+      exit(-1);
+    }
 
     return completer.future;
   }
@@ -142,7 +137,7 @@ class SamsungSmartTV {
   void onConnected() {
     print(
         'EXAMPLE::OnConnected client callback - Client connection was sucessful');
-        this.isConnected = true;
+    this.isConnected = true;
   }
 
   sendKey(KEY_CODES key) async {
@@ -151,19 +146,29 @@ class SamsungSmartTV {
     }
 
     final builder = MqttClientPayloadBuilder();
-    
+
     // Original sendkey code bellow
-    print("Send key command  ${key.toString().split('.').last}");
-    final data = json.encode({
-      "method": 'ms.remote.control',
-      "params": {
-        "Cmd": 'Click',
-        "DataOfCmd": key.toString().split('.').last,
-        "Option": false,
-        "TypeOfRemote": 'SendRemoteKey',
-      }
-    });
+    print("Send key command ${key} ${key.toString().split('.').last}");
+
+
+    var payload = preparePayload(key);
+    if(payload == null) {
+        return;
+    }
+
+    final data = json.encode(payload);
+
+    // final data = json.encode({
+    //   "method": 'ms.remote.control',
+    //   "params": {
+    //     "Cmd": 'Click',
+    //     "DataOfCmd": key.toString().split('.').last,
+    //     "Option": false,
+    //     "TypeOfRemote": 'SendRemoteKey',
+    //   }
+    // });
     builder.addString(data);
+
     /// Publish it
     print('EXAMPLE::Publishing our topic');
     client.publishMessage(pubTopic, MqttQos.exactlyOnce, builder.payload);
@@ -178,47 +183,204 @@ class SamsungSmartTV {
     return Future.delayed(Duration(milliseconds: kKeyDelay));
   }
 
-  //static method to discover Samsung Smart TVs in the network using the UPNP protocol
+  /**
+   * Used to convert the string keycode in the proper MQTT Message with actual hexadecimal IR Keycodes sequence
+   * Some operation requires multiple IR Keycodes and those are packed in an array.
+   */
+  preparePayload(KEY_CODES key) {
+    // var keyName = key.toString().split('.').last;
+    List<Map<String, Object>> payload;
 
-  // static discover() async {
-  //   var completer = new Completer();
+    const DEVICE_TYPE_SAMSUNG = 7;
+    const DEVICE_TYPE_BELL = 21;
 
-  //   final client = DeviceDiscoverer();
-  //   final List<SamsungSmartTV> tvs = [];
+    switch (key) {
+      case KEY_CODES.KEY_POWER:
+        {
+         payload =  [
+            {"type": DEVICE_TYPE_SAMSUNG, "value": samsungCodeList.firstWhere((item) => item["key"] == 'POWER')["code"], "repeat": 2},
+            {"type": DEVICE_TYPE_BELL, "value": bellCodeList.firstWhere((item) => item["key"] == 'POWER')["code"], "repeat": 2}
+          ];
+        }
+        break;
+      case KEY_CODES.KEY_VOLUP:
+        {
+          payload = [ {"type": DEVICE_TYPE_SAMSUNG, "value":  samsungCodeList.firstWhere((item) => item["key"] == 'VOL+')["code"], "repeat": 1} ];
+        }
+        break;
+      case KEY_CODES.KEY_VOLDOWN:
+        {
+          payload = [ {"type": DEVICE_TYPE_SAMSUNG, "value":  samsungCodeList.firstWhere((item) => item["key"] == 'VOL-')["code"], "repeat": 1} ];
+        }
+        break;
+      case KEY_CODES.KEY_MUTE:
+        {
+          payload = [ {"type": DEVICE_TYPE_SAMSUNG, "value":  samsungCodeList.firstWhere((item) => item["key"] == 'MUTE')["code"], "repeat": 1} ];
+        }
+        break;
+      case KEY_CODES.KEY_CHUP:
+        {
+          payload = [ {"type": DEVICE_TYPE_BELL, "value":  bellCodeList.firstWhere((item) => item["key"] == 'CHANNEL+')["code"], "repeat": 2} ];
+        }
+        break;
+      case KEY_CODES.KEY_CHDOWN:
+        {
+          payload = [ {"type": DEVICE_TYPE_BELL, "value":  bellCodeList.firstWhere((item) => item["key"] == 'CHANNEL-')["code"], "repeat": 2} ];
+        }
+        break;
+      case KEY_CODES.KEY_PVR:
+        {
+          payload = [ {"type": DEVICE_TYPE_BELL, "value":  bellCodeList.firstWhere((item) => item["key"] == 'PVR')["code"], "repeat": 1} ];
+        }
+        break;
+      case KEY_CODES.KEY_MORE:
+        {
+          payload = [ {"type": DEVICE_TYPE_BELL, "value":  bellCodeList.firstWhere((item) => item["key"] == 'INFO')["code"], "repeat": 1} ];
+        }
+        break;
 
-  //   await client.start(ipv6: false);
 
-  //   client.quickDiscoverClients().listen((client) async {
-  //     RegExp re = RegExp(r'^.*?Samsung.+UPnP.+SDK\/1\.0$');
 
-  //     //ignore other devices
-  //     if (!re.hasMatch(client.server)) {
-  //       return;
-  //     }
-  //     try {
-  //       final device = await client.getDevice();
 
-  //       Uri locaion = Uri.parse(client.location);
+      case KEY_CODES.KEY_1:
+        {
+          payload = [ {"type": DEVICE_TYPE_BELL, "value":  bellCodeList.firstWhere((item) => item["key"] == '1')["code"], "repeat": 1} ];
+        }
+        break;
+      case KEY_CODES.KEY_2:
+        {
+          payload = [ {"type": DEVICE_TYPE_BELL, "value":  bellCodeList.firstWhere((item) => item["key"] == '2')["code"], "repeat": 1} ];
+        }
+        break;
+      case KEY_CODES.KEY_3:
+        {
+          payload = [ {"type": DEVICE_TYPE_BELL, "value":  bellCodeList.firstWhere((item) => item["key"] == '3')["code"], "repeat": 1} ];
+        }
+        break;
+      case KEY_CODES.KEY_4:
+        {
+          payload = [ {"type": DEVICE_TYPE_BELL, "value":  bellCodeList.firstWhere((item) => item["key"] == '4')["code"], "repeat": 1} ];
+        }
+        break;
+      case KEY_CODES.KEY_5:
+        {
+          payload = [ {"type": DEVICE_TYPE_BELL, "value":  bellCodeList.firstWhere((item) => item["key"] == '5')["code"], "repeat": 1} ];
+        }
+        break;
+      case KEY_CODES.KEY_6:
+        {
+          payload = [ {"type": DEVICE_TYPE_BELL, "value":  bellCodeList.firstWhere((item) => item["key"] == '6')["code"], "repeat": 1} ];
+        }
+        break;
+      case KEY_CODES.KEY_7:
+        {
+          payload = [ {"type": DEVICE_TYPE_BELL, "value":  bellCodeList.firstWhere((item) => item["key"] == '7')["code"], "repeat": 1} ];
+        }
+        break;
+      case KEY_CODES.KEY_8:
+        {
+          payload = [ {"type": DEVICE_TYPE_BELL, "value":  bellCodeList.firstWhere((item) => item["key"] == '8')["code"], "repeat": 1} ];
+        }
+        break;
+      case KEY_CODES.KEY_9:
+        {
+          payload = [ {"type": DEVICE_TYPE_BELL, "value":  bellCodeList.firstWhere((item) => item["key"] == '9')["code"], "repeat": 1} ];
+        }
+        break;
+      case KEY_CODES.KEY_0:
+        {
+          payload = [ {"type": DEVICE_TYPE_BELL, "value":  bellCodeList.firstWhere((item) => item["key"] == '0')["code"], "repeat": 1} ];
+        }
+        break;
+      case KEY_CODES.KEY_LAST:
+        {
+          payload = [ {"type": DEVICE_TYPE_BELL, "value":  bellCodeList.firstWhere((item) => item["key"] == 'LAST')["code"], "repeat": 1} ];
+        }
+        break;
+      case KEY_CODES.KEY_GUIDE:
+        {
+          payload = [ {"type": DEVICE_TYPE_BELL, "value":  bellCodeList.firstWhere((item) => item["key"] == 'GUIDE')["code"], "repeat": 2} ];
+        }
+        break;
 
-  //       final deviceExists = tvs.firstWhere((tv) => tv.host == locaion.host, orElse: () => null);
+      case KEY_CODES.KEY_REWIND:
+        {
+          payload = [ {"type": DEVICE_TYPE_BELL, "value":  bellCodeList.firstWhere((item) => item["key"] == 'SKIP_BACK')["code"], "repeat": 1} ];
+        }
+        break;
+      case KEY_CODES.KEY_REC:
+        {
+          payload = [ {"type": DEVICE_TYPE_BELL, "value":  bellCodeList.firstWhere((item) => item["key"] == 'RECORD')["code"], "repeat": 1} ];
+        }
+        break;
+      case KEY_CODES.KEY_PLAY:
+      case KEY_CODES.KEY_PAUSE:
+        {
+          payload = [ {"type": DEVICE_TYPE_BELL, "value":  bellCodeList.firstWhere((item) => item["key"] == 'PLAY_PAUSE')["code"], "repeat": 1} ];
+        }
+        break;
+      case KEY_CODES.KEY_STOP:
+        {
+          payload = [ {"type": DEVICE_TYPE_BELL, "value":  bellCodeList.firstWhere((item) => item["key"] == 'STOP')["code"], "repeat": 1} ];
+        }
+        break;
+      case KEY_CODES.KEY_FF:
+        {
+          payload = [ {"type": DEVICE_TYPE_BELL, "value":  bellCodeList.firstWhere((item) => item["key"] == 'SKIP_FWD')["code"], "repeat": 1} ];
+        }
+        break;
 
-  //       if (deviceExists == null) {
-  //         print("Found ${device.friendlyName} on IP ${locaion.host}");
-  //         final tv = SamsungSmartTV(host: locaion.host);
-  //         tv.addService({"location": client.location, "server": client.server, "st": client.st, "usn": client.usn});
-  //         tvs.add(tv);
-  //       }
-  //     } catch (e, stack) {
-  //       print("ERROR: $e - ${client.location}");
-  //       print(stack);
-  //     }
-  //   }).onDone(() {
-  //     if (tvs.isEmpty) {
-  //       completer.completeError("No Samsung TVs found. Make sure the UPNP protocol is enabled in your network.");
-  //     }
-  //     completer.complete(tvs.first);
-  //   });
 
-  //   return completer.future;
-  // }
+      case KEY_CODES.KEY_APP_LIST:
+        {
+          payload = [ {"type": DEVICE_TYPE_BELL, "value":  bellCodeList.firstWhere((item) => item["key"] == 'APPS')["code"], "repeat": 1} ];
+        }
+        break;
+      case KEY_CODES.KEY_SOURCE:
+        {
+          payload = [ {"type": DEVICE_TYPE_SAMSUNG, "value":  samsungCodeList.firstWhere((item) => item["key"] == 'SOURCE')["code"], "repeat": 1} ];
+        }
+        break;
+      case KEY_CODES.KEY_UP:
+        {
+          payload = [ {"type": DEVICE_TYPE_BELL, "value":  bellCodeList.firstWhere((item) => item["key"] == 'UP')["code"], "repeat": 1} ];
+        }
+        break;
+      case KEY_CODES.KEY_DOWN:
+        {
+          payload = [ {"type": DEVICE_TYPE_BELL, "value":  bellCodeList.firstWhere((item) => item["key"] == 'DOWN')["code"], "repeat": 1} ];
+        }
+        break;
+      case KEY_CODES.KEY_LEFT:
+        {
+          payload = [ {"type": DEVICE_TYPE_BELL, "value":  bellCodeList.firstWhere((item) => item["key"] == 'LEFT')["code"], "repeat": 1} ];
+        }
+        break;
+      case KEY_CODES.KEY_RIGHT:
+        {
+          payload = [ {"type": DEVICE_TYPE_BELL, "value":  bellCodeList.firstWhere((item) => item["key"] == 'RIGHT')["code"], "repeat": 1} ];
+        }
+        break;
+      case KEY_CODES.KEY_ENTER:
+        {
+          payload = [ {"type": DEVICE_TYPE_BELL, "value":  bellCodeList.firstWhere((item) => item["key"] == 'SELECT')["code"], "repeat": 1} ];
+        }
+        break;
+      case KEY_CODES.KEY_RETURN:
+      case KEY_CODES.KEY_EXT41:
+        {
+          payload = [ {"type": DEVICE_TYPE_BELL, "value":  bellCodeList.firstWhere((item) => item["key"] == 'BACK_EXIT')["code"], "repeat": 1} ];
+        }
+        break;
+      default:
+        {
+          //statements;
+          payload = null;
+
+        }
+        break;
+    }
+
+    return payload;
+  }
 }

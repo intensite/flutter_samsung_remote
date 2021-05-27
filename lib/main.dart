@@ -66,7 +66,8 @@ class _MyHomePageState extends State<MyHomePage> {
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 IconButton(
-                  icon: Icon(Icons.cast, size: 30, color: tv.isConnected ? Colors.green : Colors.red),
+                  // icon: Icon(Icons.cast, size: 30, color: tv.isConnected ? Colors.green : Colors.red),
+                  icon: Icon(Icons.cast, size: 30, color: Colors.green ),
 
                   onPressed: connectTV,
                 ),
@@ -195,11 +196,11 @@ class _MyHomePageState extends State<MyHomePage> {
                       children: [
                         ControllerButton(
                           child: Text(
-                            "Tools".toUpperCase(),
+                            "Last".toUpperCase(),
                             style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white70),
                           ),
                           onPressed: () async {
-                            await tv.sendKey(KEY_CODES.KEY_TOOLS);
+                            await tv.sendKey(KEY_CODES.KEY_LAST);
                           },
                         ),
                         ControllerButton(
@@ -235,10 +236,10 @@ class _MyHomePageState extends State<MyHomePage> {
                       alignment: Alignment.topLeft,
                       child: ControllerButton(
                         onPressed: () async {
-                          await tv.sendKey(KEY_CODES.KEY_HOME);
+                          await tv.sendKey(KEY_CODES.KEY_APP_LIST);
                         },
                         child: Text(
-                          "SMART",
+                          "APPS",
                           style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white54),
                         ),
                       ),
@@ -247,7 +248,7 @@ class _MyHomePageState extends State<MyHomePage> {
                       alignment: Alignment.topRight,
                       child: ControllerButton(
                         child: Text(
-                          "INPUT",
+                          "SOURCE",
                           style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white54),
                         ),
                         onPressed: () async {
@@ -271,11 +272,11 @@ class _MyHomePageState extends State<MyHomePage> {
                       alignment: Alignment.bottomRight,
                       child: ControllerButton(
                         child: Text(
-                          "EXIT",
+                          "GUIDE",
                           style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white54),
                         ),
                         onPressed: () async {
-                          await tv.sendKey(KEY_CODES.KEY_EXT41);
+                          await tv.sendKey(KEY_CODES.KEY_GUIDE);
                         },
                       ),
                     ),
@@ -283,7 +284,7 @@ class _MyHomePageState extends State<MyHomePage> {
                       alignment: Alignment.center,
                       child: ControllerButton(
                         child: Text(
-                          "OK",
+                          "SELECT",
                           style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
                         ),
                         onPressed: () async {
@@ -424,11 +425,11 @@ class _MyHomePageState extends State<MyHomePage> {
                     ControllerButton(
                       borderRadius: 15,
                       child: Text(
-                        "menu".toUpperCase(),
+                        "PVR".toUpperCase(),
                         style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white54),
                       ),
                       onPressed: () async {
-                        await tv.sendKey(KEY_CODES.KEY_HOME);
+                        await tv.sendKey(KEY_CODES.KEY_PVR);
                       },
                     ),
                     SizedBox(height: 35),
